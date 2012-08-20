@@ -1,7 +1,7 @@
 /*
  * RestClient.java
  *
- * Provides a complete Android REST client.
+ * Provides an asynchronized Android REST client.
  *
  * Copyright (c) 2012 Sutee Sudprasert.
  * 
