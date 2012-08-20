@@ -21,7 +21,7 @@
  * Sutee Sudprasert  <sutee.s@gmail.com>
  */
 
-package th.ac.ku.sci.cs.android.sutee.imagedownloader;
+package com.touchsi.sutee.android.rest;
 
 import java.io.BufferedReader;
 import java.io.IOException;
