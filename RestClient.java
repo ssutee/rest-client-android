@@ -195,7 +195,7 @@ public class RestClient {
 
 	private OnRequestFinishListener onRequestFinishListener;
 
-	private Handler mHandler = new Handler();
+	private Handler mHandler;
 
 	private ArrayList<NameValuePair> params;
 	private ArrayList<NameValuePair> headers;
@@ -203,6 +203,16 @@ public class RestClient {
 	private String url;
 
 	public RestClient(String url) {
+		mHandler = new Handler();
+		init(url);
+	}
+
+	public RestClient(String url, Handler handler) {
+		mHandler = handler;
+		init(url);		
+	}
+
+	private void init(String url) {
 		this.url = url;
 		params = new ArrayList<NameValuePair>();
 		headers = new ArrayList<NameValuePair>();
