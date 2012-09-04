@@ -282,30 +282,36 @@ public class RestClient {
 						}
 					}
 					final String returnResponse = response;
-					mHandler.post(new Runnable() {
-						public void run() {
-							notifyRequestFinish(method, httpResponse
-									.getStatusLine().getStatusCode(),
-									httpResponse.getStatusLine()
-											.getReasonPhrase(), returnResponse);
-						}
-					});
+					if (mHandler != null) {
+  					mHandler.post(new Runnable() {
+  						public void run() {
+  							notifyRequestFinish(method, httpResponse
+  									.getStatusLine().getStatusCode(),
+  									httpResponse.getStatusLine()
+  											.getReasonPhrase(), returnResponse);
+  						}
+  					});					  
+					} 
 				} catch (final ClientProtocolException e) {
 					client.getConnectionManager().shutdown();
 					e.printStackTrace();
-					mHandler.post(new Runnable() {
-						public void run() {
-							notifyRequestFinishWithError(e);
-						}
-					});
+					if (mHandler != null) {
+  					mHandler.post(new Runnable() {
+  						public void run() {
+  							notifyRequestFinishWithError(e);
+  						}
+  					});					  
+					} 
 				} catch (final IOException e) {
 					client.getConnectionManager().shutdown();
 					e.printStackTrace();
-					mHandler.post(new Runnable() {
-						public void run() {
-							notifyRequestFinishWithError(e);
-						}
-					});
+					if (mHandler != null) {
+  					mHandler.post(new Runnable() {
+  						public void run() {
+  							notifyRequestFinishWithError(e);
+  						}
+  					});					  
+					}
 				}
 			}
 		}).start();
