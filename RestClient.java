@@ -54,9 +54,7 @@ import android.util.Log;
  * call to web services in a pretty neat way. Here is the code for RestClient
  * class that uses org.apache.http library which is included in Android.
  * 
- * @see http 
- *      ://lukencode.com/2010/04/27/calling-web-services-in-android-using-httpclient
- *      /
+ * @see http://lukencode.com/2010/04/27/calling-web-services-in-android-using-httpclient/
  * 
  * @author Luke Lowrey
  * @author Sutee Sudprasert (refactoring and improvement)
