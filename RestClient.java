@@ -50,18 +50,156 @@ import android.os.Handler;
 import android.util.Log;
 
 /**
- * RestClient.java
- * Credit to Luke Lowrey for his code for RestClient which makes call to
- * web services in a pretty neat way. Here is the code for RestClient class
- * that uses org.apache.http library which is included in Android.
- *
- * @see http://lukencode.com/2010/04/27/calling-web-services-in-android-using-httpclient/
+ * RestClient.java Credit to Luke Lowrey for his code for RestClient which makes
+ * call to web services in a pretty neat way. Here is the code for RestClient
+ * class that uses org.apache.http library which is included in Android.
+ * 
+ * @see http 
+ *      ://lukencode.com/2010/04/27/calling-web-services-in-android-using-httpclient
+ *      /
  * 
  * @author Luke Lowrey
  * @author Sutee Sudprasert (refactoring and improvement)
  */
 
 public class RestClient {
+
+	ExecuteRequest mExecuteRequest;
+
+	public class ExecuteRequest {
+
+		private RequestMethod mMethod;
+		private int mResponseCode;
+		private String mMessage;
+		private String mResponse;
+		private Exception mError;
+
+		public void finish(RequestMethod method, HttpResponse httpResponse,
+				String response) {
+			mMethod = method;
+			mResponseCode = httpResponse.getStatusLine().getStatusCode();
+			mMessage = httpResponse.getStatusLine().getReasonPhrase();
+			mResponse = response;
+		}
+
+		public void error(Exception e) {
+			mError = e;
+		}
+
+		public void execute(HttpUriRequest request, String url,
+				RequestMethod method) {
+			final HttpClient client = new DefaultHttpClient();
+
+			try {
+				final HttpResponse httpResponse = client.execute(request);
+				Log.d("RestClient", httpResponse.getAllHeaders().toString());
+				String response = null;
+				if (httpResponse.getEntity() != null) {
+					try {
+						InputStream instream = httpResponse.getEntity()
+								.getContent();
+						response = convertStreamToString(instream);
+						instream.close();
+					} catch (IllegalStateException e) {
+						e.printStackTrace();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+				finish(method, httpResponse, response);
+			} catch (final ClientProtocolException e) {
+				client.getConnectionManager().shutdown();
+				e.printStackTrace();
+				error(e);
+			} catch (final IOException e) {
+				client.getConnectionManager().shutdown();
+				e.printStackTrace();
+				error(e);
+			}
+		}
+
+		public RequestMethod getMethod() {
+			return mMethod;
+		}
+
+		public int getResponseCode() {
+			return mResponseCode;
+		}
+
+		public String getResponse() {
+			return mResponse;
+		}
+
+		public String getMessage() {
+			return mMessage;
+		}
+
+		public Exception getError() {
+			return mError;
+		}
+	}
+
+	public class AsyncExecuteRequest extends ExecuteRequest {
+
+		private OnRequestFinishListener onRequestFinishListener;
+		private Handler mHandler;
+
+		public AsyncExecuteRequest(Handler handler,
+				OnRequestFinishListener onRequestFinishListener) {
+			mHandler = handler;
+			this.onRequestFinishListener = onRequestFinishListener;
+		}
+
+		public void setHandler(Handler handler) {
+			mHandler = handler;
+		}
+
+		public void setOnRequestFinishListener(
+				OnRequestFinishListener onRequestFinishListener) {
+			this.onRequestFinishListener = onRequestFinishListener;
+		}
+
+		private void notifyRequestFinish(RequestMethod method,
+				int responseCode, String message, String response) {
+			if (onRequestFinishListener != null) {
+				onRequestFinishListener.onRequestFinish(method, responseCode,
+						message, response);
+			}
+		}
+
+		private void notifyRequestFinishWithError(Exception e) {
+			if (onRequestFinishListener != null) {
+				onRequestFinishListener.onRequestFinishWithError(e);
+			}
+		}
+
+		@Override
+		public void finish(final RequestMethod method,
+				final HttpResponse httpResponse, final String response) {
+			super.finish(method, httpResponse, response);
+			if (mHandler != null) {
+				mHandler.post(new Runnable() {
+					public void run() {
+						notifyRequestFinish(method, httpResponse
+								.getStatusLine().getStatusCode(), httpResponse
+								.getStatusLine().getReasonPhrase(), response);
+					}
+				});
+			}
+		}
+
+		@Override
+		public void error(final Exception e) {
+			super.error(e);
+			if (mHandler != null) {
+				mHandler.post(new Runnable() {
+					public void run() {
+						notifyRequestFinishWithError(e);
+					}
+				});
+			}
+		}
+	}
 
 	public static enum RequestMethod {
 		GET, POST, PUT, DELETE
@@ -193,7 +331,7 @@ public class RestClient {
 		void onRequestFinishWithError(Exception e);
 	}
 
-	private OnRequestFinishListener onRequestFinishListener;
+	protected OnRequestFinishListener onRequestFinishListener;
 
 	private Handler mHandler;
 
@@ -203,13 +341,12 @@ public class RestClient {
 	private String url;
 
 	public RestClient(String url) {
-		mHandler = new Handler();
 		init(url);
 	}
 
 	public RestClient(String url, Handler handler) {
 		mHandler = handler;
-		init(url);		
+		init(url);
 	}
 
 	private void init(String url) {
@@ -231,12 +368,14 @@ public class RestClient {
 		headers.add(new BasicNameValuePair(name, value));
 	}
 
-	public void execute(RequestMethod method) {
+	public boolean execute(RequestMethod method) {
 		try {
 			RestMethodFactory.create(method).executeRequest(this);
+			return true;
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}
+		return false;
 	}
 
 	private void addHeaders(AbstractHttpMessage request) {
@@ -245,76 +384,33 @@ public class RestClient {
 		}
 	}
 
-	private void notifyRequestFinish(RequestMethod method, int responseCode,
-			String message, String response) {
-		if (onRequestFinishListener != null) {
-			onRequestFinishListener.onRequestFinish(method, responseCode,
-					message, response);
-		}
-	}
-
-	private void notifyRequestFinishWithError(Exception e) {
-		if (onRequestFinishListener != null) {
-			onRequestFinishListener.onRequestFinishWithError(e);
-		}
-	}
-
-	private void executeRequest(final HttpUriRequest request, String url,
+	private void executeRequest(final HttpUriRequest request, final String url,
 			final RequestMethod method) {
-		new Thread(new Runnable() {
-			public void run() {
-				final HttpClient client = new DefaultHttpClient();
 
-				try {
-					final HttpResponse httpResponse = client.execute(request);
-					Log.d("RestClient", httpResponse.getAllHeaders().toString());
-					String response = null;
-					if (httpResponse.getEntity() != null) {
-						try {
-							InputStream instream = httpResponse.getEntity()
-									.getContent();
-							response = convertStreamToString(instream);
-							instream.close();
-						} catch (IllegalStateException e) {
-							e.printStackTrace();
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-					}
-					final String returnResponse = response;
-					if (mHandler != null) {
-  					mHandler.post(new Runnable() {
-  						public void run() {
-  							notifyRequestFinish(method, httpResponse
-  									.getStatusLine().getStatusCode(),
-  									httpResponse.getStatusLine()
-  											.getReasonPhrase(), returnResponse);
-  						}
-  					});					  
-					} 
-				} catch (final ClientProtocolException e) {
-					client.getConnectionManager().shutdown();
-					e.printStackTrace();
-					if (mHandler != null) {
-  					mHandler.post(new Runnable() {
-  						public void run() {
-  							notifyRequestFinishWithError(e);
-  						}
-  					});					  
-					} 
-				} catch (final IOException e) {
-					client.getConnectionManager().shutdown();
-					e.printStackTrace();
-					if (mHandler != null) {
-  					mHandler.post(new Runnable() {
-  						public void run() {
-  							notifyRequestFinishWithError(e);
-  						}
-  					});					  
-					}
+		if (mHandler != null) {
+			new Thread(new Runnable() {
+				public void run() {
+					mExecuteRequest = new AsyncExecuteRequest(mHandler,
+							onRequestFinishListener);
+					mExecuteRequest.execute(request, url, method);
 				}
-			}
-		}).start();
+			}).start();
+		} else {
+			mExecuteRequest = new ExecuteRequest();
+			mExecuteRequest.execute(request, url, method);
+		}
+	}
+
+	public String getResponse() {
+		return mExecuteRequest.getResponse();
+	}
+
+	public int getResponseCode() {
+		return mExecuteRequest.getResponseCode();
+	}
+
+	public String getMessage() {
+		return mExecuteRequest.getMessage();
 	}
 
 	private static String convertStreamToString(InputStream is) {
@@ -339,5 +435,4 @@ public class RestClient {
 		}
 		return sb.toString();
 	}
-
 }
